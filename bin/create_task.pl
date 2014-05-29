@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+# PODNAME: create_task
+
 use strict;
 use warnings;
 
@@ -9,6 +11,8 @@ use File::Spec;
 use IO::File;
 use MetaCPAN::Client;
 use Parse::CPAN::Packages;
+
+our $VERSION = 0.01;
 
 my $dist_ini = File::Spec->catfile(
     dirname( __FILE__ ),
@@ -59,7 +63,10 @@ sub write_prereqs {
     $fh->close;
 
     $dist_ini .= "perl = 5.010001\n";
-    $dist_ini .= sprintf "%s = %s\n", $_, $modules{$_}->{version} for sort keys %modules;
+    for my $dist ( sort keys %modules ) {
+        my $name = $dist =~ s/-/::/gr;
+        $dist_ini .= sprintf "%s = %s\n", $name, $modules{$dist}->{version};
+    }
 
     my $fh_write = IO::File->new( $config, 'w' );
     $fh_write->print( $dist_ini );
