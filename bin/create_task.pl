@@ -22,7 +22,7 @@ my $dist_ini = File::Spec->catfile(
     'dist.ini',
 );
 
-my $file = File::Temp->new( UNLINK => 0, SUFFIX => '.txt.gz' );
+my $file = File::Temp->new( UNLINK => 1, SUFFIX => '.txt.gz' );
 if ( !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/ ) {
     print STDERR "Download 02packages.details.txt.gz...\n";
     my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
