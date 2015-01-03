@@ -11,6 +11,8 @@ use File::Spec;
 use IO::File;
 use MetaCPAN::Client;
 use Parse::CPAN::Packages;
+use LWP::Simple qw(getstore);
+use File::Temp ();
 
 our $VERSION = 0.01;
 
@@ -20,7 +22,14 @@ my $dist_ini = File::Spec->catfile(
     'dist.ini',
 );
 
-die "Need path to 02packages.details.txt.gz" if !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/;
+my $file = File::Temp->new( UNLINK => 0, SUFFIX => '.txt.gz' );
+if ( !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/ ) {
+    print STDERR "Download 02packages.details.txt.gz...\n";
+    my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
+    getstore $url, $file->filename;
+    $ARGV[0] = $file->filename;
+    print "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
+}
 
 my %modules = get_modules($ARGV[0]);
 write_prereqs( $dist_ini, %modules );
@@ -28,6 +37,8 @@ create_pod( %modules );
 
 sub get_modules {
     my ($packages_file) = @_;
+
+    print STDERR "Get modules...";
 
     my $parser        = Parse::CPAN::Packages->new( $packages_file );
     my @distributions = $parser->latest_distributions;
@@ -48,11 +59,15 @@ sub get_modules {
         $modules{$name} = +{ version => $version, abstract => $abstract };
     }
 
+    print STDERR " found " . (scalar keys %modules) . "modules\n";
+
     return %modules;
 }
 
 sub write_prereqs {
     my ($config, %modules) = @_;
+
+    print STDERR "write prereqs...\n";
 
     my $dist_ini = '';
     my $fh = IO::File->new( $config, 'r' );
@@ -75,6 +90,8 @@ sub write_prereqs {
 
 sub create_pod {
     my (%modules) = @_;
+
+    print STDERR "write pod...\n";
 
     my $pm_file  = File::Spec->catfile(
         dirname( __FILE__ ),
