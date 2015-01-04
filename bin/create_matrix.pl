@@ -21,7 +21,7 @@ our $VERSION = 0.02;
 my $db                   = _find_or_create_db();
 my $perlbrew             = File::Spec->catdir( $ENV{HOME}, qw/perl5 perlbrew perls/ );
 my @perl_versions        = _get_perl_versions( $perlbrew );
-my @mojolicious_versions = _get_mojolicious_versions();
+my @mojolicious_versions = _get_mojolicious_versions( \@perl_versions );
 
 my $file = File::Temp->new( UNLINK => 1, SUFFIX => '.txt.gz' );
 if ( !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/ ) {
@@ -42,9 +42,13 @@ sub create_matrix {
     my $sth_select = $db->prepare( 'SELECT pname FROM matrix WHERE pname = ? AND pversion = ? AND perl_version = ? AND mojo_version = ? LIMIT 1');
 
     print STDERR "Create matrix...\n";
+
+    MODULE:
     for my $module ( sort keys %{ $modules } ) {
         my $name = $module =~ s/-/::/gr;
         my $info = $modules->{$module};
+
+        next MODULE if $name eq 'Mojolicious';
 
         for my $perl ( @{ $perls } ) {
 
@@ -54,17 +58,20 @@ sub create_matrix {
                 my $dirname = $dir->dirname;
 
                 $sth_select->execute( $module, $info->{version}, $perl, $mojo );
-                my $name;
+                my $found_name;
                 while ( my @row = $sth_select->fetchrow_array ) {
-                    $name = shift @row;
+                    $found_name = shift @row;
                 }
 
-                next MOJO if $name;
+                next MOJO if $found_name;
 
-                print STDERR "cpanm $name ($module)...\n";
+                print STDERR "cpanm $name ($module) for Perl $perl/Mojolicious $mojo...\n";
 
-                my $cpan = File::Spec->catfile( $brew, 'perls-' . $perl, 'bin', 'cpanm' );
-                my $cpanm_output = qx{ $cpan -L $dirname $name };
+                my $cpan  = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'cpanm' );
+                my $perlx = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'perl' );
+                my $inc   = File::Spec->catfile( $ENV{HOME}, 'mojolib', $perl, $mojo, "lib", "perl5" );
+                #print STDERR qq{ $perlx -I$inc $cpan -L $dirname $name };
+                my $cpanm_output = qx{ $perlx -I$inc $cpan -L $dirname $name };
                 if (
                     $cpanm_output =~ m{Successfully installed $module-\d+} || 
                     $cpanm_output =~ m{$name is up to date} ) {
@@ -126,6 +133,8 @@ sub _find_or_create_db {
 }
 
 sub _get_mojolicious_versions {
+    my $perls = shift;
+
     my $dir = File::Spec->catdir( $ENV{HOME}, qw/mojolib/ );
     my @mojolicious_versions;
     opendir my $mojolibh, File::Spec->catdir( $dir, $perls->[0] );
