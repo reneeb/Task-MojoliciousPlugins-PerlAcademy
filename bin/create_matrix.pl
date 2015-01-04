@@ -23,7 +23,7 @@ if ( !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/ ) 
     my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
     getstore $url, $file->filename;
     $ARGV[0] = $file->filename;
-    print "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
+    print STDERR "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
 }
 
 my %modules = get_modules($ARGV[0]);
@@ -33,7 +33,7 @@ print JSON->new->encode( { perl => { path => $^X, version => $] }, results => \%
 sub create_matrix {
     my ($modules) = @_;
 
-    my $dir     = File::Temp->newdir( CLEANUP => 0 );
+    my $dir     = File::Temp->newdir( CLEANUP => 1 );
     my $dirname = $dir->dirname;
 
     print STDERR "Create matrix...\n";
