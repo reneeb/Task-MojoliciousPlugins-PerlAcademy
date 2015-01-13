@@ -43,12 +43,34 @@ sub create_matrix {
 
     print STDERR "Create matrix...\n";
 
+    my $blacklist = File::Spec->catfile( dirname( __FILE__ ), 'blacklist' );
+    my %blacklisted_modules;
+    if ( -f $blacklist ) {
+        print STDERR "read blacklist...";
+        if ( open my $fh, '<', $blacklist ) {
+            while ( my $line = <$fh> ) {
+                chomp $line;
+                next if !$line;
+                print STDERR "$line\n";
+                $blacklisted_modules{$line}++;
+            }
+            print STDERR "done\n";
+        }
+        else {
+            print STDERR "error ($!)\n";
+        }
+    }
+
     MODULE:
     for my $module ( sort keys %{ $modules } ) {
         my $name = $module =~ s/-/::/gr;
         my $info = $modules->{$module};
 
         next MODULE if $name eq 'Mojolicious';
+        if ( $blacklisted_modules{$module} ) {
+            print STDERR "Skipped $module as it is blacklisted!\n";
+            next MODULE;
+        }
 
         for my $perl ( @{ $perls } ) {
 
@@ -65,14 +87,22 @@ sub create_matrix {
 
                 next MOJO if $found_name;
 
-                print STDERR "cpanm $name ($module) for Perl $perl/Mojolicious $mojo...\n";
+                if ( $mojo < $info->{dependency} ) {
+                    print STDERR "Module required Mojolicious " . $info->{dependency} . "\n";
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1" );
+                    next MOJO;
+                }
 
+                print STDERR "cpanm $name ($module) for Perl $perl/Mojolicious $mojo...\n";
                 my $cpan  = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'cpanm' );
                 my $perlx = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'perl' );
                 my $inc   = File::Spec->catfile( $ENV{HOME}, 'mojolib', $perl, $mojo, "lib", "perl5" );
-                #print STDERR qq{ $perlx -I$inc $cpan -L $dirname $name };
-                my $cpanm_output = qx{ $perlx -I$inc $cpan -L $dirname $name };
-                if (
+                my $cpanm_output = qx{ PERL5LIB=$inc $cpan --local-lib $dirname $name };
+
+                if ( $cpanm_output =~ m{Successfully installed Mojolicious-\d+} ) {
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1" );
+                }
+                elsif (
                     $cpanm_output =~ m{Successfully installed $module-\d+} || 
                     $cpanm_output =~ m{$name is up to date} ) {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1 );
@@ -104,10 +134,17 @@ sub get_modules {
         my $version  = $dist->version;
 
         print STDERR "found $name ($version)\n";
+        my $releases = $mcpan->release({ all => [ { distribution => $name }, { version => $version } ] })->next;
+        my $release  = $releases ? $releases : $mcpan->release( $name );
+        my $abstract = $release->abstract || '';
 
-        my $abstract = $mcpan->release( $name )->abstract || '';
+        my ($depends) =
+            map{$_->{version_numified}}
+            grep{
+                $_->{module} =~ m{\AMojo(?:licious)\z}
+            }@{ $release->dependency || [{module => 1}] };
 
-        $modules{$name} = +{ version => $version, abstract => $abstract };
+        $modules{$name} = +{ version => $version, abstract => $abstract, dependency => ( $depends || 0 ) };
     }
 
     print STDERR " found " . (scalar keys %modules) . "modules\n";

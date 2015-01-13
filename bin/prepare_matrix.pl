@@ -33,10 +33,16 @@ sub _get_and_install_mojolicious_versions {
     push @mojolicious_versions, $latest_version;
 
     for my $perl ( @{ $perls } ) {
+        my $cpanm   = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'cpanm' );
+        print STDERR "install DBD::Pg and DBD::mysql...";
+        qx{ $cpanm DBD::Pg };
+        qx{ $cpanm --force DBD::mysql };
+        print STDERR "done\n";
 
         VERSION:
         for my $version ( @mojolicious_versions ) {
             print STDERR "Work on $dir/$perl/$version...\n";
+
             my $path = File::Spec->catdir( $dir, $perl, $version );
             File::Path::Tiny::mk( $path ) if !-d $path;
 
@@ -57,7 +63,6 @@ sub _get_and_install_mojolicious_versions {
                 my $target = $release->next->download_url;
             }
 
-            my $cpanm   = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'cpanm' );
             print STDERR "$cpanm -L $path $target...\n";
             qx{ $cpanm -L $path $target };
         }
