@@ -1,1 +1,7 @@
 MojoX-Session-Store-Libmemcached
+MojoX-Redis
+MojoX-Renderer-Alloy
+MojoX-Renderer-CTPP2
+MojoX-UserAgent
+MojoX-Renderer-WriteExcel
+

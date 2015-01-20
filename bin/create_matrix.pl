@@ -61,6 +61,8 @@ sub create_matrix {
         }
     }
 
+    my $report = '';
+
     MODULE:
     for my $module ( sort keys %{ $modules } ) {
         my $name = $module =~ s/-/::/gr;
@@ -110,10 +112,13 @@ sub create_matrix {
                 }
                 else {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0 );
+                    $report .= sprintf "%s %s (%s/%s)\n", $module, $info->{version}, $perl, $mojo;
                 }
             }
         }
     }
+
+    print STDERR $report,"\n";
 }
 
 sub get_modules {
