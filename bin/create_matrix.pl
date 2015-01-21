@@ -38,7 +38,7 @@ create_matrix( $db, $perlbrew, \@perl_versions, \@mojolicious_versions, \%module
 sub create_matrix {
     my ($db, $brew, $perls, $mojos, $modules) = @_;
 
-    my $sth  = $db->prepare( 'INSERT INTO matrix (pname, pversion, abstract, perl_version, mojo_version, result) VALUES( ?,?,?,?,?,? )' );
+    my $sth  = $db->prepare( 'INSERT INTO matrix (pname, pversion, abstract, perl_version, mojo_version, result, author) VALUES( ?,?,?,?,?,?,? )' );
     my $sth_select = $db->prepare( 'SELECT pname FROM matrix WHERE pname = ? AND pversion = ? AND perl_version = ? AND mojo_version = ? LIMIT 1');
 
     print STDERR "Create matrix...\n";
@@ -91,7 +91,7 @@ sub create_matrix {
 
                 if ( $mojo < $info->{dependency} ) {
                     print STDERR "Module required Mojolicious " . $info->{dependency} . "\n";
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1" );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
                     next MOJO;
                 }
 
@@ -102,16 +102,16 @@ sub create_matrix {
                 my $cpanm_output = qx{ PERL5LIB=$inc $cpan --local-lib $dirname $name };
 
                 if ( $cpanm_output =~ m{Successfully installed Mojolicious-\d+} ) {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1" );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
                 }
                 elsif (
                     $cpanm_output =~ m{Successfully installed $module-\d+} || 
                     $cpanm_output =~ m{$name is up to date} ) {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1 );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1, $info->{author} );
                     
                 }
                 else {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0 );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0, $info->{author} );
                     $report .= sprintf "%s %s (%s/%s)\n", $module, $info->{version}, $perl, $mojo;
                 }
             }
@@ -132,7 +132,7 @@ sub get_modules {
 
     my %modules;
     for my $dist ( @distributions ) {
-        my $name     = $dist->dist;
+        my $name = $dist->dist;
 
         next if $name !~ m!^Mojo (?:X|licious)!x;
 
@@ -146,10 +146,15 @@ sub get_modules {
         my ($depends) =
             map{$_->{version_numified}}
             grep{
-                $_->{module} =~ m{\AMojo(?:licious)\z}
+                $_->{module} =~ m{\AMojo(?:licious)?\z}
             }@{ $release->dependency || [{module => 1}] };
 
-        $modules{$name} = +{ version => $version, abstract => $abstract, dependency => ( $depends || 0 ) };
+        $modules{$name} = +{
+            version    => $version,
+            abstract   => $abstract,
+            dependency => ( $depends || 0 ),
+            author     => $release->author,
+        };
     }
 
     print STDERR " found " . (scalar keys %modules) . "modules\n";
@@ -165,7 +170,7 @@ sub _find_or_create_db {
 
     if ( !$exists ) {
         my @creates = (
-            q~CREATE TABLE matrix ( pname TEXT NOT NULL, pversion TEXT NOT NULL, abstract TEXT, perl_version TEXT NOT NULL, mojo_version TEXT NOT NULL, result TEXT )~,
+            q~CREATE TABLE matrix ( pname TEXT NOT NULL, pversion TEXT NOT NULL, abstract TEXT, perl_version TEXT NOT NULL, mojo_version TEXT NOT NULL, result TEXT, author TEXT )~,
         );
 
         $dbh->do( $_ ) for @creates;

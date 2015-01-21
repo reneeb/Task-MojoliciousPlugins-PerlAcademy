@@ -21,7 +21,7 @@ get '/' => sub {
     my @combis = map{ my $perl = $_; map{ "$perl / $_" }@mojolicious_versions }@perl_versions;
 
     my $db  = _connect_db();
-    my $sth = $db->prepare( 'SELECT pname, pversion, abstract, perl_version, mojo_version, result FROM matrix' );
+    my $sth = $db->prepare( 'SELECT pname, pversion, abstract, perl_version, mojo_version, result, author FROM matrix' );
     $sth->execute;
 
     my %results = ( 0 => 'nok', 1 => 'ok', -1 => 'requires greater version of Mojolicious' );
@@ -29,6 +29,7 @@ get '/' => sub {
     my %plugins;
     while ( my @row = $sth->fetchrow_array ) {
         $plugins{$row[0]}->{$row[1]}->{abstract} = $row[2];
+        $plugins{$row[0]}->{$row[1]}->{author}   = $row[6];
         $plugins{$row[0]}->{$row[1]}->{"$row[3] / $row[4]"} = $results{$row[5]};
     }
 
@@ -190,7 +191,7 @@ a("#"+c+" tbody tr").each(function(){var b=a(this).html().toLowerCase().replace(
         <tr>
           <td><a href="https://metacpan.org/pod/<%= $module %>"><%= $plugin %> <%= $latest %></a></td>
           <td><%= $plugins->{$plugin}->{$latest}->{abstract} %></td>
-          <td><%= $plugins->{$plugin}->{author} // '' %></td>
+          <td><%= $plugins->{$plugin}->{$latest}->{author} // '' %></td>
 % for my $combi ( @{ $combis } ) {
 %     my $result_class = $map{ $plugins->{$plugin}->{$latest}->{$combi} } // $map{unknown};
 %     (my $combi_class = $combi) =~ tr/.\//- /d;
