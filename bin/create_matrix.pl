@@ -15,6 +15,7 @@ use LWP::Simple qw(getstore);
 use File::Temp ();
 use JSON;
 use DBI;
+use List::Util qw(first);
 
 our $VERSION = 0.02;
 
@@ -24,19 +25,16 @@ my @perl_versions        = _get_perl_versions( $perlbrew );
 my @mojolicious_versions = _get_mojolicious_versions( \@perl_versions );
 
 my $file = File::Temp->new( UNLINK => 1, SUFFIX => '.txt.gz' );
-if ( !$ARGV[0] || !-f $ARGV[0] || $ARGV[0] !~ /02packages\.details\.txt\.gz$/ ) {
-    print STDERR "Download 02packages.details.txt.gz...\n";
-    my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
-    getstore $url, $file->filename;
-    $ARGV[0] = $file->filename;
-    print STDERR "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
-}
+print STDERR "Download 02packages.details.txt.gz...\n";
+my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
+getstore $url, $file->filename;
+print STDERR "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
 
-my %modules = get_modules($ARGV[0]);
-create_matrix( $db, $perlbrew, \@perl_versions, \@mojolicious_versions, \%modules );
+my %modules = get_modules( $file->filename );
+create_matrix( $db, $perlbrew, \@perl_versions, \@mojolicious_versions, \%modules, \@ARGV );
 
 sub create_matrix {
-    my ($db, $brew, $perls, $mojos, $modules) = @_;
+    my ($db, $brew, $perls, $mojos, $modules, $requested) = @_;
 
     my $sth  = $db->prepare( 'INSERT INTO matrix (pname, pversion, abstract, perl_version, mojo_version, result, author) VALUES( ?,?,?,?,?,?,? )' );
     my $sth_select = $db->prepare( 'SELECT pname FROM matrix WHERE pname = ? AND pversion = ? AND perl_version = ? AND mojo_version = ? LIMIT 1');
@@ -68,6 +66,10 @@ sub create_matrix {
         my $name = $module =~ s/-/::/gr;
         my $info = $modules->{$module};
 
+        if ( $requested && @{ $requested } && !first{ $module eq $_ }@{ $requested } ) {
+            next MODULE;
+        }
+
         next MODULE if $name eq 'Mojolicious';
         if ( $blacklisted_modules{$module} ) {
             print STDERR "Skipped $module as it is blacklisted!\n";
@@ -90,7 +92,7 @@ sub create_matrix {
                 next MOJO if $found_name;
 
                 if ( $mojo < $info->{dependency} ) {
-                    print STDERR "Module required Mojolicious " . $info->{dependency} . "\n";
+                    print STDERR "$module requires Mojolicious " . $info->{dependency} . "\n";
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
                     next MOJO;
                 }
@@ -100,13 +102,13 @@ sub create_matrix {
                 my $perlx = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'perl' );
                 my $inc   = File::Spec->catfile( $ENV{HOME}, 'mojolib', $perl, $mojo, "lib", "perl5" );
                 my $cpanm_output = qx{ PERL5LIB=$inc $cpan --local-lib $dirname $name };
+                my $error        = $? ? 1 : 0;
+                my $pversion = $info->{version};
 
                 if ( $cpanm_output =~ m{Successfully installed Mojolicious-\d+} ) {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
                 }
-                elsif (
-                    $cpanm_output =~ m{Successfully installed $module-\d+} || 
-                    $cpanm_output =~ m{$name is up to date} ) {
+                elsif ( !$error ) {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1, $info->{author} );
                     
                 }
@@ -124,6 +126,24 @@ sub create_matrix {
 sub get_modules {
     my ($packages_file) = @_;
 
+    my $whitelist = File::Spec->catfile( dirname( __FILE__ ), 'whitelist' );
+    my %whitelisted_modules;
+    if ( -f $whitelist ) {
+        print STDERR "read whitelist...";
+        if ( open my $fh, '<', $whitelist ) {
+            while ( my $line = <$fh> ) {
+                chomp $line;
+                next if !$line;
+                print STDERR "$line\n";
+                $whitelisted_modules{$line}++;
+            }
+            print STDERR "done\n";
+        }
+        else {
+            print STDERR "error ($!)\n";
+        }
+    }
+
     print STDERR "Get modules...";
 
     my $parser        = Parse::CPAN::Packages->new( $packages_file );
@@ -134,14 +154,15 @@ sub get_modules {
     for my $dist ( @distributions ) {
         my $name = $dist->dist;
 
-        next if $name !~ m!^Mojo (?:X|licious)!x;
+        next if $name !~ m!^Mojo (?:X|licious)?-!x && !$whitelisted_modules{$name};
 
         my $version  = $dist->version;
 
-        print STDERR "found $name ($version)\n";
         my $releases = $mcpan->release({ all => [ { distribution => $name }, { version => $version } ] })->next;
         my $release  = $releases ? $releases : $mcpan->release( $name );
         my $abstract = $release->abstract || '';
+
+        print STDERR "found $name ($version)\n";
 
         my ($depends) =
             map{$_->{version_numified}}
