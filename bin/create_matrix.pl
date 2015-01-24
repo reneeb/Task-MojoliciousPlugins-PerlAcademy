@@ -30,7 +30,7 @@ my $url = 'http://www.cpan.org/modules/02packages.details.txt.gz';
 getstore $url, $file->filename;
 print STDERR "downloaded " . (-s $file->filename) . " bytes to " . $file->filename . "\n";
 
-my %modules = get_modules( $file->filename );
+my %modules = get_modules( $file->filename, \@ARGV );
 create_matrix( $db, $perlbrew, \@perl_versions, \@mojolicious_versions, \%modules, \@ARGV );
 
 sub create_matrix {
@@ -124,7 +124,7 @@ sub create_matrix {
 }
 
 sub get_modules {
-    my ($packages_file) = @_;
+    my ($packages_file, $preselected) = @_;
 
     my $whitelist = File::Spec->catfile( dirname( __FILE__ ), 'whitelist' );
     my %whitelisted_modules;
@@ -147,8 +147,19 @@ sub get_modules {
     print STDERR "Get modules...";
 
     my $parser        = Parse::CPAN::Packages->new( $packages_file );
-    my @distributions = $parser->latest_distributions;
     my $mcpan         = MetaCPAN::Client->new;
+
+    my @distributions;
+    if ( $preselected && @{ $preselected } ) {
+        for my $package ( @{ $preselected } ) {
+            my $name = $package =~ s/-/::/gr;
+            my $module = $parser->package( $name );
+            push @distributions, $module->distribution;
+        }
+    }
+    else {
+        @distributions = $parser->latest_distributions;
+    }
 
     my %modules;
     for my $dist ( @distributions ) {
