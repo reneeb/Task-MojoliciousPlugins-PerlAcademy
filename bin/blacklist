@@ -5,4 +5,7 @@ MojoX-Renderer-CTPP2
 MojoX-UserAgent
 MojoX-Renderer-WriteExcel
 Mojolicious-Plugin-Bundle
+Mojolicious-Plugin-Geo
+MojoX-Plugin-PHP
+
 
