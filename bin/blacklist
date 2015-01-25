@@ -7,5 +7,5 @@ MojoX-Renderer-WriteExcel
 Mojolicious-Plugin-Bundle
 Mojolicious-Plugin-Geo
 MojoX-Plugin-PHP
-
+MojoX-Dispatcher-Qooxdoo-Jsonrpc
 

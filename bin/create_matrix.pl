@@ -16,8 +16,9 @@ use File::Temp ();
 use JSON;
 use DBI;
 use List::Util qw(first);
+use HTTP::Tiny;
 
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
 my $db                   = _find_or_create_db();
 my $perlbrew             = File::Spec->catdir( $ENV{HOME}, qw/perl5 perlbrew perls/ );
@@ -147,7 +148,9 @@ sub get_modules {
     print STDERR "Get modules...";
 
     my $parser        = Parse::CPAN::Packages->new( $packages_file );
-    my $mcpan         = MetaCPAN::Client->new;
+    my $mcpan         = MetaCPAN::Client->new(
+        ua => HTTP::Tiny->new( agent => 'Mojolicious Plugin Matrix (mojo.perl-services.de) / ' . $VERSION ),
+    );
 
     my @distributions;
     if ( $preselected && @{ $preselected } ) {
