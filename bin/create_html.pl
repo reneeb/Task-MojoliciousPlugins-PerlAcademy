@@ -132,6 +132,9 @@ a("#"+c+" tbody tr").each(function(){var b=a(this).html().toLowerCase().replace(
   </head>
   <body>
     <div class="filter">
+% my $latest_mojo = $mojos->[-1];
+% $latest_mojo =~ tr/./-/;
+
        Mojolicious:
 % for my $index ( 0 .. $#{ $mojos } ) {
 %     my $mojo       = $mojos->[$index];
@@ -150,6 +153,34 @@ a("#"+c+" tbody tr").each(function(){var b=a(this).html().toLowerCase().replace(
     <script type="text/javascript">
         $(document).ready( function() {
            $("table").addTableFilter();
+
+           var search = window.location.href.split( '#' )[1] || '';
+           var terms  = search.split( ',' );
+
+           if ( terms[0] !== '' ) {
+               var keywords   = '';
+               var checkboxes = 0;
+
+               $('input[name="filter"]').prop('checked', false );
+               $.each( terms, function( i, term) {
+                   var checkbox = $('input[value="' + term + '"]');
+                   if ( checkbox.get(0) ) {
+                       checkbox.prop( 'checked', true );
+                       checkboxes++;
+                   }
+                   else {
+                       keywords += term + " ";
+                   }
+               });
+
+               if ( !checkboxes ) {
+                   var checkbox = $('input[value="<%= $latest_mojo %>"]').prop( 'checked', true );
+               }
+
+               if ( keywords ) {
+                   $('input[type="search"]').val( keywords ).trigger('keyup');
+               }
+           }
 
            switch_on_off();
            $('input[name="filter"]').bind( 'change', function() { switch_on_off() } );
