@@ -41,30 +41,44 @@ sub _get_and_install_mojolicious_versions {
 
         VERSION:
         for my $version ( @mojolicious_versions ) {
-            print STDERR "Work on $dir/$perl/$version...\n";
+            print STDERR "Work on $dir/$perl/$version...";
 
             my $path = File::Spec->catdir( $dir, $perl, $version );
             File::Path::Tiny::mk( $path ) if !-d $path;
 
             my $inc   = File::Spec->catdir( $path, 'lib', 'perl5' );
             my $perlx = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'perl' );
-            my $qx    = qx{ $perlx -I$inc -Mojo -e 1 2>&1};
+            my $qx    = qx{ $perlx -I$inc -MMojolicious -E 'say Mojolicious->VERSION'};
 
-            next VERSION if !$qx || $qx !~ m{Can't locate ojo.pm};
-
-            my $target = 'Mojolicious';
-            if ( $version ne $latest_version ) {
-                my ($release) = $mcpan_client->release({
-                    'all' => [
-                        { distribution => 'Mojolicious' },
-                        { version      => "$version" },
-                    ],
-                });
-                my $target = $release->next->download_url;
+            if ( $qx !~ m{Can't locate ojo.pm} ) {
+                print STDERR $qx;
+                next VERSION;
             }
 
-            print STDERR "$cpanm -L $path $target...\n";
-            qx{ $cpanm -L $path $target };
+            my ($release) = $mcpan_client->release({
+                'all' => [
+                    { distribution => 'Mojolicious' },
+                    { version      => "$version" },
+                ],
+            });
+            my $target = $release->next->download_url;
+
+            my @urls = ($target);
+            for my $new ( qw{http://search.cpan.org/CPAN/ http://backpan.perl.org/} ) {
+                my $new_target = $target =~ s{https://cpan.metacpan.org/}{$new}r;
+                push @urls, $new_target;
+            }
+
+            URL:
+            while ( @urls ) {
+                my $url = shift @urls;
+                print STDERR "$cpanm -L $path $url...\n";
+                qx{ $cpanm -L $path $url };
+                last URL if !$?;
+            }
+
+            my $check = qx{ $perlx -I$inc -MMojolicious -E 'say Mojolicious->VERSION'};
+            print STDERR "ok...\n" if $check =~ m{$version};
         }
     }
 
