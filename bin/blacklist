@@ -1,5 +1,6 @@
 MojoX-Session-Store-Libmemcached
 MojoX-Redis
+Mojo-Redis
 MojoX-Renderer-Alloy
 MojoX-Renderer-CTPP2
 MojoX-UserAgent
@@ -8,4 +9,5 @@ Mojolicious-Plugin-Bundle
 Mojolicious-Plugin-Geo
 MojoX-Plugin-PHP
 MojoX-Dispatcher-Qooxdoo-Jsonrpc
+MojoX-Ping
 
