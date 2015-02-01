@@ -50,7 +50,7 @@ sub _get_and_install_mojolicious_versions {
             my $perlx = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'perl' );
             my $qx    = qx{ $perlx -I$inc -MMojolicious -E 'say Mojolicious->VERSION'};
 
-            if ( $qx !~ m{Can't locate ojo.pm} ) {
+            if ( $qx !~ m{Can't locate Mojolicious.pm} ) {
                 print STDERR $qx;
                 next VERSION;
             }
