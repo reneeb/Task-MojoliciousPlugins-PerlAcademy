@@ -48,7 +48,7 @@ sub _get_and_install_mojolicious_versions {
 
             my $inc   = File::Spec->catdir( $path, 'lib', 'perl5' );
             my $perlx = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'perl' );
-            my $qx    = qx{ $perlx -I$inc -MMojolicious -E 'say Mojolicious->VERSION'};
+            my $qx    = qx{ $perlx -I$inc -MMojolicious -E 'say Mojolicious->VERSION' 2>&1};
 
             if ( $qx !~ m{Can't locate Mojolicious.pm} ) {
                 print STDERR $qx;
