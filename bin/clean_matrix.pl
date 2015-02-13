@@ -4,6 +4,8 @@ use strict;
 use warnings;
 
 use File::Path::Tiny;
+use File::Spec;
+use File::Basename;
 use Getopt::Long;
 use DBI;
 
