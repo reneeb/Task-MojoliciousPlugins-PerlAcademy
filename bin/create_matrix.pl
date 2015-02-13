@@ -111,7 +111,7 @@ sub create_matrix {
                 }
                 elsif ( !$error ) {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1, $info->{author} );
-                    
+                    qx{ cpanm-reporter };            
                 }
                 else {
                     $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0, $info->{author} );
