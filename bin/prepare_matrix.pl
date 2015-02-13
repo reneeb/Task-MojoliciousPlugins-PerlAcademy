@@ -34,9 +34,10 @@ sub _get_and_install_mojolicious_versions {
 
     for my $perl ( @{ $perls } ) {
         my $cpanm   = File::Spec->catfile( $perlbrew, 'perl-' . $perl, 'bin', 'cpanm' );
-        print STDERR "install DBD::Pg and DBD::mysql...";
+        print STDERR "install DBD::Pg, DBD::mysql and cpanm-reporter...";
         qx{ $cpanm DBD::Pg };
         qx{ $cpanm --force DBD::mysql };
+        qx{ $cpanm App::cpanminus::reporter };
         print STDERR "done\n";
 
         VERSION:
