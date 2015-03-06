@@ -37,7 +37,7 @@ create_matrix( $db, $perlbrew, \@perl_versions, \@mojolicious_versions, \%module
 sub create_matrix {
     my ($db, $brew, $perls, $mojos, $modules, $requested) = @_;
 
-    my $sth  = $db->prepare( 'INSERT INTO matrix (pname, pversion, abstract, perl_version, mojo_version, result, author) VALUES( ?,?,?,?,?,?,? )' );
+    my $sth  = $db->prepare( 'INSERT INTO matrix (pname, pversion, abstract, perl_version, mojo_version, result, author, error_log) VALUES( ?,?,?,?,?,?,?,? )' );
     my $sth_select = $db->prepare( 'SELECT pname FROM matrix WHERE pname = ? AND pversion = ? AND perl_version = ? AND mojo_version = ? LIMIT 1');
 
     print STDERR "Create matrix...\n";
@@ -94,7 +94,7 @@ sub create_matrix {
 
                 if ( $mojo < $info->{dependency} ) {
                     print STDERR "$module requires Mojolicious " . $info->{dependency} . "\n";
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author}, '' );
                     next MOJO;
                 }
 
@@ -102,19 +102,32 @@ sub create_matrix {
                 my $cpan  = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'cpanm' );
                 my $perlx = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'perl' );
                 my $inc   = File::Spec->catfile( $ENV{HOME}, 'mojolib', $perl, $mojo, "lib", "perl5" );
-                my $cpanm_output = qx{ PERL5LIB=$inc $cpan --local-lib $dirname $name };
+                my $cpanm_output = qx{ PERL5LIB=$inc perlbrew exec --with perl-$perl $cpan --print-dir --local-lib $dirname $name };
                 my $error        = $? ? 1 : 0;
                 my $pversion = $info->{version};
 
+                my ($work_directory) = $cpanm_output =~ m{Work directory is (.*)\r?\n};
+
                 if ( $cpanm_output =~ m{Successfully installed Mojolicious-\d+} ) {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author} );
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, "-1", $info->{author}, '' );
+                    my $cpanm_reporter = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'cpanm-reporter' );
+                    qx{ $cpanm_reporter --build_dir $work_directory };
                 }
                 elsif ( !$error ) {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1, $info->{author} );
-                    qx{ cpanm-reporter };            
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 1, $info->{author}, '' );
+                    my $cpanm_reporter = File::Spec->catfile( $brew, 'perl-' . $perl, 'bin', 'cpanm-reporter' );
+                    qx{ $cpanm_reporter --build_dir $work_directory };
                 }
                 else {
-                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0, $info->{author} );
+                    my $fh  = IO::File->new( File::Spec->catfile( $work_directory, 'build.log' ), 'r' );
+                    my $log = '';
+                    {
+                        local $/;
+                        $log = <$fh>;
+                    }
+                    $fh->close;
+
+                    $sth->execute( $module, $info->{version}, $info->{abstract}, $perl, $mojo, 0, $info->{author}, $log // '' );
                     $report .= sprintf "%s %s (%s/%s)\n", $module, $info->{version}, $perl, $mojo;
                 }
             }
@@ -205,7 +218,7 @@ sub _find_or_create_db {
 
     if ( !$exists ) {
         my @creates = (
-            q~CREATE TABLE matrix ( pname TEXT NOT NULL, pversion TEXT NOT NULL, abstract TEXT, perl_version TEXT NOT NULL, mojo_version TEXT NOT NULL, result TEXT, author TEXT )~,
+            q~CREATE TABLE matrix ( pname TEXT NOT NULL, pversion TEXT NOT NULL, abstract TEXT, perl_version TEXT NOT NULL, mojo_version TEXT NOT NULL, result TEXT, author TEXT, error_log TEXT )~,
         );
 
         $dbh->do( $_ ) for @creates;

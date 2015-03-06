@@ -74,7 +74,7 @@ sub _get_and_install_mojolicious_versions {
             while ( @urls ) {
                 my $url = shift @urls;
                 print STDERR "$cpanm -L $path $url...\n";
-                qx{ $cpanm -L $path $url };
+                qx{ perlbrew exec --with $perl $cpanm -L $path $url };
                 last URL if !$?;
             }
 
